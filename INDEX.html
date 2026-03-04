@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Ad Quiz Cycle</title>
+    
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$']] }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root { --primary: #4a90e2; --success: #2ecc71; --error: #e74c3c; --bg: #f4f7f6; }
+        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        
+        .quiz-container { background: white; width: 95%; max-width: 600px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; position: relative; }
+        .content { padding: 2rem; }
+        h2 { white-space: pre-line; line-height: 1.6; margin-top: 0; font-size: 1.3rem; min-height: 80px; }
+        
+        .options-grid { display: grid; gap: 12px; margin: 25px 0; }
+        .option-item { display: block; padding: 18px; border: 2px solid #edf2f7; border-radius: 12px; cursor: pointer; transition: 0.3s; font-size: 1.1rem; }
+        .option-item.correct { background-color: #d4edda; border-color: var(--success); color: #155724; font-weight: bold; }
+        .option-item.wrong { background-color: #f8d7da; border-color: var(--error); color: #721c24; }
+        .option-item.disabled { pointer-events: none; }
+
+        #next-btn { background: var(--primary); color: white; border: none; width: 100%; padding: 1.5rem; font-size: 1.2rem; font-weight: bold; cursor: pointer; }
+        .hidden { display: none !important; }
+
+        /* AD MODAL WITH VISUAL TIMER */
+        #ad-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100; color: white;
+            text-align: center;
+        }
+        #ad-image { max-width: 80%; max-height: 50%; border-radius: 10px; border: 2px solid #555; margin-bottom: 20px; }
+        
+        .timer-box { position: relative; width: 80px; height: 80px; margin-bottom: 10px; }
+        .timer-box svg { transform: rotate(-90deg); width: 80px; height: 80px; }
+        .timer-box circle {
+            fill: none; stroke-width: 6; stroke-dasharray: 226; 
+            stroke-dashoffset: 0; stroke-linecap: round;
+        }
+        .bg-circle { stroke: #333; }
+        .progress-circle { 
+            stroke: var(--primary); 
+            transition: stroke-dashoffset 1s linear; 
+        }
+        .timer-text {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 1.5rem; font-weight: bold;
+        }
+        .ad-label { font-size: 0.8rem; text-transform: uppercase; color: #888; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <div id="loading" style="text-align:center; padding:5rem;">✨ Loading...</div>
+
+    <div id="ad-modal" class="hidden">
+        <div class="ad-label">Advertisement</div>
+        <img id="ad-image" src="https://firststatemontessori.org/wp-content/uploads/2023/11/FSMA_break_blog.cover_.png" alt="Ad">
+        
+        <div class="timer-box">
+            <svg>
+                <circle class="bg-circle" cx="40" cy="40" r="36"></circle>
+                <circle id="timer-progress" class="progress-circle" cx="40" cy="40" r="36"></circle>
+            </svg>
+            <div id="ad-countdown" class="timer-text">7</div>
+        </div>
+        <p style="color: #aaa; font-size: 0.9rem;">Resuming quiz soon...</p>
+    </div>
+
+    <div id="quiz-box" class="content hidden">
+        <h2 id="question"></h2>
+        <div class="options-grid" id="options-container"></div>
+    </div>
+    <button id="next-btn" class="hidden">Next Question →</button>
+</div>
+
+
+
+<script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxU2n1UiBH5_EgKdHIMMIx69ClT9ASIeDL9e2kHjI2bnhqCX3SdIIUb9TERWAsEsIts/exec';
+    
+    let questions = [];
+    let currentIndex = 0;
+    let questionsSinceAd = 0;
+    const TOTAL_AD_TIME = 7;
+
+    async function loadData() {
+        try {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            questions = data.filter(q => q.question);
+            startNewCycle();
+        } catch (e) { document.getElementById('loading').innerHTML = "⚠️ Error connecting to sheet."; }
+    }
+
+    function startNewCycle() {
+        shuffle(questions);
+        currentIndex = 0;
+        questionsSinceAd = 0;
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('quiz-box').classList.remove('hidden');
+        showQuestion();
+    }
+
+    function showQuestion() {
+        const data = questions[currentIndex];
+        const container = document.getElementById('options-container');
+        document.getElementById('question').innerHTML = data.question;
+        document.getElementById('next-btn').classList.add('hidden');
+        container.innerHTML = ''; 
+
+        ['a', 'b', 'c', 'd'].forEach(letter => {
+            if(data[letter]) {
+                const div = document.createElement('div');
+                div.className = 'option-item';
+                div.innerHTML = data[letter];
+                div.onclick = () => checkAnswer(div, letter);
+                container.appendChild(div);
+            }
+        });
+        if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    function checkAnswer(selectedDiv, letterChosen) {
+        const data = questions[currentIndex];
+        const correctAnswer = String(data.correct).toLowerCase().trim();
+        const allOptions = document.querySelectorAll('.option-item');
+        allOptions.forEach(opt => opt.classList.add('disabled'));
+
+        if (letterChosen === correctAnswer) {
+            selectedDiv.classList.add('correct');
+        } else {
+            selectedDiv.classList.add('wrong');
+            const letters = ['a', 'b', 'c', 'd'];
+            const correctIdx = letters.indexOf(correctAnswer);
+            if(correctIdx !== -1) allOptions[correctIdx].classList.add('correct');
+        }
+        document.getElementById('next-btn').classList.remove('hidden');
+    }
+
+    document.getElementById('next-btn').onclick = () => {
+        currentIndex++;
+        questionsSinceAd++;
+
+        if (questionsSinceAd >= 5) {
+            showAutoAd();
+        } else {
+            proceed();
+        }
+    };
+
+    function showAutoAd() {
+        const modal = document.getElementById('ad-modal');
+        const countdownSpan = document.getElementById('ad-countdown');
+        const progressCircle = document.getElementById('timer-progress');
+        
+        modal.classList.remove('hidden');
+        questionsSinceAd = 0;
+
+        let timeLeft = TOTAL_AD_TIME;
+        countdownSpan.innerText = timeLeft;
+        
+        // Reset progress circle
+        const circumference = 2 * Math.PI * 36;
+        progressCircle.style.strokeDashoffset = 0;
+
+        const interval = setInterval(() => {
+            timeLeft--;
+            countdownSpan.innerText = timeLeft;
+            
+            // Calculate progress offset
+            const offset = circumference - (timeLeft / TOTAL_AD_TIME) * circumference;
+            progressCircle.style.strokeDashoffset = offset;
+
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    proceed();
+                }, 500); // Tiny pause at 0 for smoothness
+            }
+        }, 1000);
+    }
+
+    function proceed() {
+        if (currentIndex < questions.length) {
+            showQuestion();
+        } else {
+            startNewCycle();
+        }
+    }
+
+    function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+    }
+
+    loadData();
+</script>
+</body>
+</html>
