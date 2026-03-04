@@ -165,7 +165,7 @@
     document.getElementById('next-btn').onclick = () => {
         currentIndex++;
         questionsSinceAd++;
-        if (questionsSinceAd >= 5) {
+        if (questionsSinceAd >= 25) {
             questionsSinceAd = 0;
             showAd();
         } else {
@@ -186,7 +186,7 @@
         const timer = setInterval(() => {
             time--;
             text.innerText = time;
-            progress.style.strokeDashoffset = 176 - (time / 7) * 176;
+            progress.style.strokeDashoffset = 176 - (time / 5) * 176;
             if (time <= 0) {
                 clearInterval(timer);
                 modal.classList.add('hidden');
@@ -210,3 +210,4 @@
 </script>
 </body>
 </html>
+
